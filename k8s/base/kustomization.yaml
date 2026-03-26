@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: iot-platform
+
+resources:
+  # Namespaces
+  - namespaces.yaml
+
+  # Shared config
+  - configmap.yaml
+  - secrets.yaml
+  - ingress.yaml
+
+  # Application services (iot-app namespace)
+  - iot-backend/deployment.yaml
+  - iot-backend/service.yaml
+  - web-app/deployment.yaml
+  - web-app/service.yaml
+
+  # Broker services (iot-broker namespace)
+  - pubsub-broker/statefulset.yaml
+  - pubsub-broker/service.yaml
+  - telemetry-worker/deployment.yaml
+  - ttl-cleanup-worker/cronjob.yaml
+
+  # Infrastructure (iot-infra namespace)
+  - kafka/kafka.yaml
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - influxdb/statefulset.yaml
+  - influxdb/service.yaml
+  - mongodb/statefulset.yaml
+  - mongodb/service.yaml
+
+commonLabels:
+  project: iot-platform
+  managed-by: kustomize

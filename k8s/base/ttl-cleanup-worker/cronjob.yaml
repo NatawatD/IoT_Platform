@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ttl-cleanup-worker
+  namespace: iot-broker
+  labels:
+    app: ttl-cleanup-worker
+spec:
+  schedule: "0 * * * *"     # Run every hour at :00
+  concurrencyPolicy: Forbid  # Don't start a new job if previous is still running
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800   # Kill if running > 30 minutes
+      template:
+        metadata:
+          labels:
+            app: ttl-cleanup-worker
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9090"
+            prometheus.io/path: "/metrics"
+        spec:
+          containers:
+            - name: ttl-cleanup-worker
+              image: ttl-cleanup-worker:latest
+              envFrom:
+                - configMapRef:
+                    name: iot-config
+                - secretRef:
+                    name: iot-secrets
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              securityContext:
+                runAsNonRoot: true
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+          restartPolicy: Never

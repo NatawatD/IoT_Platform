@@ -1,0 +1,57 @@
+groups:
+  - name: iot-platform-alerts
+    rules:
+      # ── API Error Rate ──
+      - alert: HighAPIErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High API error rate detected"
+          description: "5xx error rate is {{ $value | humanizePercentage }} (threshold: 5%) for the last 5 minutes."
+
+      # ── Kafka Consumer Lag ──
+      - alert: TelemetryConsumerLag
+        expr: telemetry_consumer_lag > 1000
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Telemetry consumer lag is high"
+          description: "Kafka consumer lag for partition {{ $labels.partition }} is {{ $value }} (threshold: 1000)."
+
+      # ── Pod Crash Loop ──
+      - alert: PodCrashLooping
+        expr: increase(kube_pod_container_status_restarts_total{namespace=~"iot-.*"}[15m]) > 3
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash looping"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last 15 minutes."
+
+      # ── Broker Connections ──
+      - alert: BrokerNoConnections
+        expr: broker_active_connections == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Broker has no active device connections"
+          description: "PubSub broker has had 0 active connections for 2 minutes."
+
+      # ── TTL Cleanup Failures ──
+      - alert: TTLCleanupFailed
+        expr: kube_job_status_failed{job_name=~"ttl-cleanup-worker.*"} >= 3
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TTL cleanup worker has failed 3+ times"
+          description: "The TTL cleanup CronJob has {{ $value }} consecutive failures."

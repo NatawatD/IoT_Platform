@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: iot-ingress
+  namespace: iot-app
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: iot.example.com
+      http:
+        paths:
+          # API backend — /api/* routes to iot-backend service
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: iot-backend
+                port:
+                  number: 8000
+          # Web app — all other routes to web-app (React SPA)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-app
+                port:
+                  number: 80

@@ -1,0 +1,112 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/iot
+
+jobs:
+  # ── Deploy to Staging ─────────────────────────────────────
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+
+      - name: Update image tags via Kustomize
+        run: |
+          cd k8s/overlays/staging
+          kustomize edit set image \
+            iot-backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-iot-backend:${{ github.sha }} \
+            pubsub-broker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-pubsub-broker:${{ github.sha }} \
+            telemetry-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-telemetry-worker:${{ github.sha }} \
+            ttl-cleanup-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ttl-cleanup-worker:${{ github.sha }} \
+            web-app=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web-app:${{ github.sha }}
+
+      - name: Deploy to staging
+        run: |
+          kubectl apply -k k8s/overlays/staging
+          kubectl rollout status deployment/iot-backend -n iot-app --timeout=120s
+          kubectl rollout status deployment/web-app -n iot-app --timeout=120s
+          kubectl rollout status statefulset/pubsub-broker -n iot-broker --timeout=120s
+          kubectl rollout status deployment/telemetry-worker -n iot-broker --timeout=120s
+
+  # ── Integration Tests against Staging ─────────────────────
+  integration-tests:
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test deps
+        run: pip install pytest httpx python-dotenv
+
+      - name: Run integration tests
+        env:
+          API_BASE_URL: ${{ secrets.STAGING_API_URL }}
+        run: pytest tests/integration/ -v
+
+  # ── Deploy to Production (manual approval) ────────────────
+  deploy-production:
+    needs: [integration-tests]
+    runs-on: ubuntu-latest
+    environment: production   # ← Requires manual approval via GitHub Environment Protection Rules
+    permissions:
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+
+      - name: Update image tags via Kustomize
+        run: |
+          cd k8s/overlays/production
+          kustomize edit set image \
+            iot-backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-iot-backend:${{ github.sha }} \
+            pubsub-broker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-pubsub-broker:${{ github.sha }} \
+            telemetry-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-telemetry-worker:${{ github.sha }} \
+            ttl-cleanup-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ttl-cleanup-worker:${{ github.sha }} \
+            web-app=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web-app:${{ github.sha }}
+
+      - name: Deploy to production
+        run: |
+          kubectl apply -k k8s/overlays/production
+          kubectl rollout status deployment/iot-backend -n iot-app --timeout=180s
+          kubectl rollout status deployment/web-app -n iot-app --timeout=180s
+          kubectl rollout status statefulset/pubsub-broker -n iot-broker --timeout=180s
+          kubectl rollout status deployment/telemetry-worker -n iot-broker --timeout=180s
+
+      - name: Smoke test
+        env:
+          API_BASE_URL: ${{ secrets.PRODUCTION_API_URL }}
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" $API_BASE_URL/api/v1/health)
+          if [ "$STATUS" != "200" ]; then
+            echo "Smoke test failed! Rolling back..."
+            kubectl rollout undo deployment/iot-backend -n iot-app
+            kubectl rollout undo deployment/web-app -n iot-app
+            exit 1
+          fi
+          echo "Smoke test passed!"

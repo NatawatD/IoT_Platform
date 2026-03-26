@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iot-app
+  labels:
+    project: iot-platform
+    tier: application
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iot-broker
+  labels:
+    project: iot-platform
+    tier: broker
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iot-infra
+  labels:
+    project: iot-platform
+    tier: infrastructure

@@ -1,0 +1,77 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "IoT Platform Overview Dashboard",
+  "editable": true,
+  "panels": [
+    {
+      "title": "API Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[5m])) by (status)",
+          "legendFormat": "HTTP {{status}}"
+        }
+      ]
+    },
+    {
+      "title": "API Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95 latency"
+        }
+      ]
+    },
+    {
+      "title": "Broker Active Connections",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "broker_active_connections",
+          "legendFormat": "Connections"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "telemetry_consumer_lag",
+          "legendFormat": "Partition {{partition}}"
+        }
+      ]
+    },
+    {
+      "title": "TTL Cleanup Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "ttl_cleanup_duration_seconds",
+          "legendFormat": "Duration"
+        }
+      ]
+    },
+    {
+      "title": "Points Deleted by TTL",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(ttl_cleanup_points_deleted) by (group_id)",
+          "legendFormat": "{{group_id}}"
+        }
+      ]
+    }
+  ],
+  "title": "IoT Platform Overview",
+  "uid": "iot-platform-overview"
+}
