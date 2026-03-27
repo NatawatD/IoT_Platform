@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: iot-backend-monitor
+  namespace: iot-app
+  labels:
+    app: iot-backend
+spec:
+  selector:
+    matchLabels:
+      app: iot-backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pubsub-broker-monitor
+  namespace: iot-broker
+  labels:
+    app: pubsub-broker
+spec:
+  selector:
+    matchLabels:
+      app: pubsub-broker
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

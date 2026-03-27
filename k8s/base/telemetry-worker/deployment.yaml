@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-worker
+  namespace: iot-broker
+  labels:
+    app: telemetry-worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: telemetry-worker
+  template:
+    metadata:
+      labels:
+        app: telemetry-worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: telemetry-worker
+          image: telemetry-worker:latest
+          ports:
+            - containerPort: 9090
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: iot-config
+            - secretRef:
+                name: iot-secrets
+          env:
+            - name: KAFKA_CONSUMER_GROUP
+              value: "telemetry-workers"
+            - name: KAFKA_TOPIC
+              value: "iot.telemetry"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      restartPolicy: Always

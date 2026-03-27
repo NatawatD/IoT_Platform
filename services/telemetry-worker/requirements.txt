@@ -1,0 +1,8 @@
+# Telemetry Worker - Python Dependencies
+aiokafka==0.10.0
+influxdb-client[async]==1.43.0
+motor==3.4.0
+structlog==24.2.0
+prometheus-client==0.20.0
+pydantic==2.7.0
+pydantic-settings==2.3.0

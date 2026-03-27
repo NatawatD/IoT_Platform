@@ -1,0 +1,473 @@
+# 🛠️ DevOps Engineer — Complete Task Guide for IoT Platform
+
+> [!IMPORTANT]
+> This guide extracts **every task that falls on the DevOps engineer** from the IoT Platform Definitive Guide. The project is a **5-week graduate course project** and the codebase is currently **empty** (only placeholder READMEs exist). Your work underpins everything the developers build.
+
+---
+
+## 📌 Your Scope at a Glance
+
+As the DevOps engineer, you own **6 major domains**:
+
+| # | Domain | Guide Parts |
+|---|--------|------------|
+| 1 | **Project Structure & Repository Setup** | Part 12 |
+| 2 | **CI/CD Pipeline** (GitHub Actions + GHCR) | Part 10 |
+| 3 | **Kubernetes Deployment** (Kustomize, namespaces, manifests) | Part 9 |
+| 4 | **Infrastructure Services** (Kafka, PostgreSQL, InfluxDB, MongoDB) | Parts 3, 9 |
+| 5 | **Observability & Monitoring** (Prometheus, Grafana, Alertmanager) | Part 11 |
+| 6 | **Security Hardening** (secrets, network policies, non-root containers) | Part 8 |
+
+---
+
+## 🗓️ Week-by-Week DevOps Tasks
+
+### Week 1 — Foundation
+
+| # | Task | Details | Deliverable |
+|---|------|---------|-------------|
+| 1 | **Create GitHub repo with full project structure** | See [File Structure](#-task-1-project-file-structure) below | All directories and placeholder files exist |
+| 2 | **Set up CI workflow** | GitHub Actions: `ruff` + `pytest` on every push/PR for Python services; `eslint` + `vitest` for frontend | `.github/workflows/ci.yml` green on push |
+| 3 | **Deploy infrastructure on local K8s** | minikube or k3s: **Kafka** (3 replicas, Strimzi, KRaft mode), **PostgreSQL 16**, **InfluxDB 2.7**, **MongoDB 7** | All 4 infra services running, accessible from pods |
+| 4 | **Create Kafka topics** | `iot.telemetry` (6 partitions, 7d retention), `iot.commands` (3 partitions, 1d), `iot.device-events` (3 partitions, 3d), `iot.cmd-responses` (3 partitions, 1d) | Topics created and verified |
+| 5 | **PostgreSQL schema init** | Apply the SQL from Part 6 (tables: `users`, `groups`, `devices`, `device_credentials`, `user_tokens` + indexes) | Schema migration script or init SQL |
+| 6 | **Write Dockerfiles** | Multi-stage Dockerfiles for: `iot-backend`, `pubsub-broker`, `telemetry-worker`, `ttl-cleanup-worker`, `web-app` | Each service builds and runs in Docker |
+
+### Week 2 — Broker Infrastructure
+
+| # | Task | Details | Deliverable |
+|---|------|---------|-------------|
+| 7 | **K8s manifests for broker** | `pubsub-broker/` StatefulSet (2 replicas), LoadBalancer Service on TCP `:1883` | ESP32 can reach broker via external IP |
+| 8 | **K8s manifests for telemetry-worker** | Deployment (3 replicas), env vars for Kafka + InfluxDB + MongoDB | Workers consuming from Kafka |
+| 9 | **K8s manifest for TTL cleanup worker** | CronJob running hourly | CronJob scheduled and tested |
+| 10 | **ConfigMaps and Secrets** | ConfigMap: DB URLs, Kafka bootstrap, InfluxDB org/bucket. Secrets: DB passwords, JWT secret, Kafka creds | All config externalized |
+
+### Week 3 — CI/CD Pipeline & Staging
+
+| # | Task | Details | Deliverable |
+|---|------|---------|-------------|
+| 11 | **Complete CI pipeline** | Matrix job: lint + test per service, Docker build + push to GHCR (tagged with commit SHA), Trivy security scan | Fully automated CI |
+| 12 | **CD pipeline — staging** | On merge to `main`: Kustomize sets image tags → kubectl apply to staging → wait for rollout → integration tests | Auto-deploy to staging |
+| 13 | **Kustomize base manifests** | All base manifests complete (see structure below) | `k8s/base/` complete |
+| 14 | **Kustomize staging overlay** | 1 replica per service, staging domain | `k8s/overlays/staging/` |
+| 15 | **Ingress configuration** | Nginx Ingress: `/` → web-app, `/api` → iot-backend | External routing works |
+
+### Week 4 — Integration & Hardening
+
+| # | Task | Details | Deliverable |
+|---|------|---------|-------------|
+| 16 | **Integration test infrastructure** | pytest + httpx test suite running against staging | `tests/integration/` |
+| 17 | **Full K8s manifests verified** | All 9 components deployed and communicating | End-to-end data flow working |
+| 18 | **PVC verification** | PostgreSQL: 10Gi, InfluxDB: 20Gi, MongoDB: 10Gi | Data persists across pod restarts |
+
+### Week 5 — Production & Monitoring
+
+| # | Task | Details | Deliverable |
+|---|------|---------|-------------|
+| 19 | **Production Kustomize overlay** | 2-3 replicas, higher resource limits, TLS via cert-manager, production domain | `k8s/overlays/production/` |
+| 20 | **Manual approval gate** | GitHub environment protection rule on `production` environment | Merge to main → staging auto → approval → prod |
+| 21 | **Prometheus metrics + ServiceMonitors** | Scrape all services for metrics listed below | `monitoring/service-monitors.yaml` |
+| 22 | **Grafana dashboards** | Pre-built dashboards for API latency, Kafka lag, broker connections, TTL cleanup | `monitoring/grafana-dashboards.json` |
+| 23 | **Alertmanager rules** | 5 alert rules (see below) | `monitoring/alertmanager-config.yaml` |
+| 24 | **Network policies** | Restrict pod-to-pod communication per namespace | Isolation enforced |
+| 25 | **Security hardening** | Non-root containers, read-only root filesystem, sealed-secrets | All containers hardened |
+| 26 | **Deployment guide document** | Step-by-step deployment instructions | `docs/deployment-guide.md` |
+
+---
+
+## 📁 Task 1: Project File Structure
+
+Create this entire directory tree. Developers will fill in the code, but you create the scaffolding:
+
+```
+iot-platform/
+├── .github/workflows/
+│   ├── ci.yml
+│   └── cd.yml
+│
+├── k8s/
+│   ├── base/
+│   │   ├── kustomization.yaml
+│   │   ├── namespaces.yaml          # iot-app, iot-broker, iot-infra
+│   │   ├── configmap.yaml
+│   │   ├── secrets.yaml             # Template (sealed-secrets in prod)
+│   │   ├── ingress.yaml
+│   │   ├── iot-backend/
+│   │   │   ├── deployment.yaml
+│   │   │   └── service.yaml
+│   │   ├── web-app/
+│   │   │   ├── deployment.yaml
+│   │   │   └── service.yaml
+│   │   ├── pubsub-broker/
+│   │   │   ├── statefulset.yaml
+│   │   │   └── service.yaml         # LoadBalancer for TCP:1883
+│   │   ├── telemetry-worker/
+│   │   │   └── deployment.yaml
+│   │   ├── ttl-cleanup-worker/
+│   │   │   └── cronjob.yaml
+│   │   ├── kafka/
+│   │   │   └── kafka.yaml           # Strimzi Kafka CR
+│   │   ├── postgres/
+│   │   │   ├── statefulset.yaml
+│   │   │   ├── service.yaml
+│   │   │   └── pvc.yaml             # 10Gi
+│   │   ├── influxdb/
+│   │   │   ├── statefulset.yaml
+│   │   │   ├── service.yaml
+│   │   │   └── pvc.yaml             # 20Gi
+│   │   └── mongodb/
+│   │       ├── statefulset.yaml
+│   │       ├── service.yaml
+│   │       └── pvc.yaml             # 10Gi
+│   └── overlays/
+│       ├── staging/
+│       │   └── kustomization.yaml
+│       └── production/
+│           └── kustomization.yaml
+│
+├── services/
+│   ├── iot-backend/
+│   │   └── Dockerfile
+│   ├── pubsub-broker/
+│   │   └── Dockerfile
+│   ├── telemetry-worker/
+│   │   └── Dockerfile
+│   └── ttl-cleanup-worker/
+│       └── Dockerfile
+│
+├── apps/
+│   └── web/
+│       └── Dockerfile
+│
+├── firmware/                         # (Embedded team owns this)
+│
+├── tests/integration/
+│
+├── monitoring/
+│   ├── prometheus-rules.yaml
+│   ├── service-monitors.yaml
+│   ├── grafana-dashboards.json
+│   └── alertmanager-config.yaml
+│
+└── docs/
+    ├── architecture.md
+    ├── deployment-guide.md
+    └── credential-guide.md
+```
+
+---
+
+## 🐳 Task 6: Dockerfile Template (Multi-Stage)
+
+All Python services use the same pattern:
+
+```dockerfile
+# ---- Builder Stage ----
+FROM python:3.12-slim AS builder
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# ---- Runtime Stage ----
+FROM python:3.12-slim
+WORKDIR /app
+
+# Security: non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+COPY --from=builder /install /usr/local
+COPY . .
+
+USER appuser
+EXPOSE 8000
+CMD ["python", "main.py"]
+```
+
+For the **web app** (React + Nginx):
+
+```dockerfile
+# ---- Build Stage ----
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# ---- Runtime Stage ----
+FROM nginx:1.25-alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+```
+
+---
+
+## ☸️ Task 3: Kubernetes — Three Namespaces
+
+```yaml
+# k8s/base/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iot-app
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iot-broker
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iot-infra
+```
+
+### What goes where:
+
+| Namespace | Components | Workload Types |
+|-----------|-----------|----------------|
+| `iot-app` | IoT backend (2 replicas), Web app (2 replicas) | Deployments |
+| `iot-broker` | Broker gateway (2r), Telemetry worker (3r), TTL cleanup (hourly) | StatefulSet, Deployment, CronJob |
+| `iot-infra` | Kafka (3r), PostgreSQL (1r), InfluxDB (1r), MongoDB (1r) | StatefulSets with PVCs |
+
+---
+
+## 📡 Task 4: Kafka Topics Configuration
+
+| Topic | Partitions | Retention | Purpose |
+|-------|-----------|-----------|---------|
+| `iot.telemetry` | 6 | 7 days | Sensor data from devices |
+| `iot.commands` | 3 | 1 day | Commands to devices |
+| `iot.device-events` | 3 | 3 days | Device status changes (online/offline) |
+| `iot.cmd-responses` | 3 | 1 day | Command acknowledgments from devices |
+
+> [!NOTE]
+> All messages are keyed by `{group_id}:{device_id}`. Kafka hashes the key to partition, guaranteeing per-device ordering. With 6 partitions on `iot.telemetry`, you can run up to 6 telemetry worker replicas.
+
+Use Strimzi `KafkaTopic` resources or create manually:
+```bash
+kafka-topics.sh --create --topic iot.telemetry --partitions 6 --replication-factor 3 \
+  --config retention.ms=604800000 --bootstrap-server kafka:9092
+```
+
+---
+
+## 🔐 Task 10: ConfigMap & Secrets
+
+### ConfigMap (non-sensitive):
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iot-config
+data:
+  KAFKA_BOOTSTRAP: "kafka-0.kafka.iot-infra.svc:9092,kafka-1.kafka.iot-infra.svc:9092,kafka-2.kafka.iot-infra.svc:9092"
+  POSTGRES_HOST: "postgres.iot-infra.svc"
+  POSTGRES_DB: "iot_platform"
+  INFLUXDB_URL: "http://influxdb.iot-infra.svc:8086"
+  INFLUXDB_ORG: "iot"
+  INFLUXDB_BUCKET: "telemetry"
+  MONGODB_URI: "mongodb://mongodb.iot-infra.svc:27017/iot_platform"
+  BROKER_PORT: "1883"
+```
+
+### Secrets (sensitive — use sealed-secrets in production):
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: iot-secrets
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "<change-me>"
+  INFLUXDB_TOKEN: "<change-me>"
+  MONGODB_PASSWORD: "<change-me>"
+  JWT_SECRET: "<change-me>"
+```
+
+---
+
+## 🌐 Task 15: Ingress Configuration
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: iot-ingress
+  namespace: iot-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: iot.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: iot-backend
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-app
+                port:
+                  number: 80
+```
+
+> [!WARNING]
+> The broker gateway uses a **LoadBalancer** service (not Ingress) since ESP32 devices connect via raw TCP on port 1883, not HTTP.
+
+---
+
+## ⚙️ Task 11-12: CI/CD Pipeline
+
+### CI Workflow (`.github/workflows/ci.yml`)
+
+```
+On: push, pull_request
+
+Jobs:
+  1. lint-test (matrix: [iot-backend, pubsub-broker, telemetry-worker, ttl-cleanup-worker])
+     - Install Python 3.12
+     - pip install -r requirements.txt
+     - ruff check .          (style)
+     - mypy .                (types)
+     - pytest --cov          (tests + coverage)
+
+  2. lint-test-frontend
+     - npm ci
+     - npm run lint          (eslint)
+     - npm run test          (vitest)
+
+  3. build-push (needs: lint-test, lint-test-frontend)
+     - docker build each service
+     - docker push to ghcr.io/<org>/iot-<service>:<commit-sha>
+
+  4. security-scan (needs: build-push)
+     - trivy image scan each image
+     - BLOCK if HIGH/CRITICAL CVEs found
+```
+
+### CD Workflow (`.github/workflows/cd.yml`)
+
+```
+On: push to main (after CI passes)
+
+Jobs:
+  1. deploy-staging
+     - kustomize edit set image to commit SHA
+     - kubectl apply -k k8s/overlays/staging
+     - kubectl rollout status
+
+  2. integration-tests (needs: deploy-staging)
+     - pytest tests/integration/ (httpx against staging API)
+
+  3. deploy-production (needs: integration-tests)
+     - environment: production (MANUAL APPROVAL required)
+     - kustomize edit set image to same commit SHA
+     - kubectl apply -k k8s/overlays/production
+     - smoke test
+     - auto-rollback if smoke fails
+```
+
+---
+
+## 📊 Task 21-23: Monitoring & Alerts
+
+### Prometheus Metrics to Collect
+
+| Metric | Source Service |
+|--------|---------------|
+| `http_requests_total{method, path, status}` | IoT backend |
+| `http_request_duration_seconds` | IoT backend |
+| `telemetry_consumer_lag{partition}` | Telemetry worker |
+| `broker_active_connections` | Broker gateway |
+| `ttl_cleanup_duration_seconds` | TTL cleanup worker |
+| `ttl_cleanup_points_deleted{group_id}` | TTL cleanup worker |
+
+### Alert Rules
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| `HighAPIErrorRate` | 5xx rate > 5% for 5 min | 🔴 Critical |
+| `TelemetryConsumerLag` | lag > 1000 for 3 min | 🟡 Warning |
+| `PodCrashLooping` | > 3 restarts in 15 min | 🔴 Critical |
+| `BrokerNoConnections` | 0 connections for 2 min | 🟡 Warning |
+| `TTLCleanupFailed` | 3 consecutive CronJob failures | 🟡 Warning |
+
+---
+
+## 🔒 Task 24-25: Security Hardening Checklist
+
+- [ ] All DB passwords, JWT secret, Kafka creds in **K8s Secrets** (sealed-secrets for prod)
+- [ ] Internal endpoints (`/internal/*`) **NOT** exposed via Ingress
+- [ ] All containers run as **non-root** (`USER appuser` in Dockerfile)
+- [ ] **Read-only root filesystem** (`securityContext.readOnlyRootFilesystem: true`)
+- [ ] **Network Policies** restrict pod-to-pod communication:
+  - `iot-app` pods → can reach `iot-infra` (PostgreSQL, InfluxDB, MongoDB) + Kafka
+  - `iot-broker` pods → can reach `iot-infra` (Kafka, PostgreSQL) + `iot-app` (internal API)
+  - `iot-infra` pods → only accept connections from `iot-app` and `iot-broker`
+- [ ] Trivy image scanning in CI (blocks on HIGH/CRITICAL CVEs)
+- [ ] TLS for Ingress via **cert-manager** (production overlay)
+
+---
+
+## 🚦 Priority Order — What to Do First
+
+> [!TIP]
+> Follow this exact order. Each step unblocks the next.
+
+```mermaid
+graph TD
+    A["1. Create repo + file structure"] --> B["2. Write Dockerfiles"]
+    B --> C["3. Set up CI workflow"]
+    C --> D["4. Deploy infra on local K8s<br/>(Kafka, PG, Influx, Mongo)"]
+    D --> E["5. Create K8s base manifests<br/>(namespaces, configmaps, secrets)"]
+    E --> F["6. Write K8s manifests per service<br/>(deployments, statefulsets, cronjob)"]
+    F --> G["7. Ingress + LoadBalancer config"]
+    G --> H["8. Kustomize staging overlay"]
+    H --> I["9. CD pipeline (staging auto-deploy)"]
+    I --> J["10. Integration test infra"]
+    J --> K["11. Production overlay + TLS"]
+    K --> L["12. Monitoring stack<br/>(Prometheus, Grafana, Alerts)"]
+    L --> M["13. Security hardening<br/>(network policies, sealed-secrets)"]
+    M --> N["14. Deployment guide docs"]
+```
+
+---
+
+## 🎯 Immediate Next Steps (Start Today)
+
+Since the project is completely empty (only placeholder READMEs exist), here's what to do right now:
+
+### Step 1: Restructure the repo
+The current structure (`PubSub_Server/`, `Pubsub_Client/`, `WebApp/`) doesn't match the guide. Either:
+- **Option A**: Reorganize to match the guide's structure exactly (`services/`, `apps/`, `firmware/`, `k8s/`, etc.)
+- **Option B**: Keep the current structure but create the missing DevOps directories (`k8s/`, `.github/`, `monitoring/`, `docs/`)
+
+> [!IMPORTANT]
+> Discuss with your team which option to go with. The guide's structure is well-organized and recommended.
+
+### Step 2: Set up local K8s
+```bash
+# Install minikube (if not already)
+brew install minikube
+minikube start --cpus=4 --memory=8192 --driver=docker
+
+# Install Strimzi operator for Kafka
+kubectl create namespace iot-infra
+kubectl apply -f 'https://strimzi.io/install/latest?namespace=iot-infra'
+```
+
+### Step 3: Create the CI workflow
+Start with a minimal `ci.yml` that runs `ruff` and `pytest` — expand from there.
+
+---
+
+> [!CAUTION]
+> The project is 5 weeks total with a **Week 4 demo at 70-80% completion**. You need infrastructure running by **end of Week 1** so developers can deploy their code starting Week 2. Don't get behind!

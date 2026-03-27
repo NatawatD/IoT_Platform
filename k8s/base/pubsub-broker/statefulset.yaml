@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pubsub-broker
+  namespace: iot-broker
+  labels:
+    app: pubsub-broker
+spec:
+  serviceName: pubsub-broker-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pubsub-broker
+  template:
+    metadata:
+      labels:
+        app: pubsub-broker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: pubsub-broker
+          image: pubsub-broker:latest
+          ports:
+            - containerPort: 1883
+              name: tcp-broker
+            - containerPort: 9090
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: iot-config
+            - secretRef:
+                name: iot-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            tcpSocket:
+              port: 1883
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: 1883
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      restartPolicy: Always
