@@ -1,5 +1,5 @@
 # ── IoT Platform Docker Compose ──────────────────────────────────────────────
-# Services: Kafka (KRaft), InfluxDB 2.x, PubSub Broker + Query API
+# Services: Kafka (KRaft), MongoDB 2.x, PubSub Broker + Query API
 #
 # Usage:
 #   docker compose up -d          # start all services

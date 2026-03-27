@@ -119,7 +119,7 @@ Device                              Broker
   │──── [0x05] SUBSCRIBE ────────────▶│  "devices/ESP32_01/commands/#"
   │◀─── [0x06] SUBACK {"ok"} ────────│
   │                                   │
-  │──── [0x03] PUBLISH ──────────────▶│  telemetry → Kafka → InfluxDB
+  │──── [0x03] PUBLISH ──────────────▶│  telemetry → Kafka → MongoDB
   │                                   │
   │──── [0x09] PINGREQ ─────────────▶│
   │◀─── [0x0A] PINGRESP ─────────────│

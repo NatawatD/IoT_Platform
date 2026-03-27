@@ -2,7 +2,7 @@
 Telemetry query API endpoints.
 
 Provides HTTP endpoints for the dashboard/application layer to query
-historical and latest sensor data from InfluxDB.
+historical and latest sensor data from MongoDB.
 """
 
 from fastapi import APIRouter, HTTPException, Query

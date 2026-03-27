@@ -28,8 +28,8 @@ resources:
   - kafka/kafka.yaml
   - postgres/statefulset.yaml
   - postgres/service.yaml
-  - influxdb/statefulset.yaml
-  - influxdb/service.yaml
+  - MongoDB/statefulset.yaml
+  - MongoDB/service.yaml
   - mongodb/statefulset.yaml
   - mongodb/service.yaml
 

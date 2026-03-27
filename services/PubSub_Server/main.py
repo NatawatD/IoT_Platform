@@ -4,7 +4,7 @@ IoT Platform — Main Entrypoint
 Starts all services:
 1. TCP Broker (custom binary protocol)
 2. Kafka producer (from broker)
-3. Kafka consumer for telemetry → InfluxDB
+3. Kafka consumer for telemetry → MongoDB
 4. Kafka consumer for commands → broker → device
 5. FastAPI query API
 """
@@ -92,7 +92,7 @@ async def main():
     # ── 2. Initialize Kafka producer ──────────────────────────────────────
     kafka_producer = KafkaMessageProducer()
     try:
-        kafka_producer.initialize()
+        await kafka_producer.initialize()
     except Exception as e:
         logger.error(f"Kafka producer initialization failed: {e}")
         logger.warning("Continuing without Kafka (message routing disabled)")
@@ -161,7 +161,7 @@ async def main():
         await broker.stop()
 
         if kafka_producer:
-            kafka_producer.close()
+            await kafka_producer.close()
         if mongo_manager:
             mongo_manager.close()
 

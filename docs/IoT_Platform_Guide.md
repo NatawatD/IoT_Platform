@@ -87,8 +87,8 @@ Apache Kafka (message queue — buffers data safely)
     v                                     v
 Telemetry worker                    TTL cleanup worker (hourly)
     |         |                     deletes expired data from
-    v         v                     InfluxDB + MongoDB
-InfluxDB   MongoDB                        |
+    v         v                     MongoDB
+MongoDB   MongoDB                        |
 (history)  (latest state)                 |
     \         |                           |
      \        |                           |
@@ -117,7 +117,7 @@ There is one connection going the other direction: when a user clicks "send comm
 | Web app | React, react-grid-layout | Dashboard builder with drag-and-drop widget layout |
 | ESP32 library | C++ (Arduino/PlatformIO), ArduinoJson | Native TCP socket on ESP32, efficient JSON serialization |
 | PostgreSQL 16 | Relational database | Users, groups, devices, credentials — needs foreign keys and transactions |
-| InfluxDB 2.7 | Time-series database | Optimized for high-throughput sensor data writes and time-range queries |
+| MongoDB | Time-series database | Optimized for high-throughput sensor data writes and time-range queries |
 | MongoDB 7 | Document database | Flexible-schema dashboard configs and fast device state lookups |
 | Kubernetes | Container orchestration, Kustomize | Rolling deployments, health checks, scaling, namespace isolation |
 | GitHub Actions + GHCR | CI/CD pipeline | Automated testing, building, scanning, and deploying |
@@ -143,7 +143,7 @@ Every device, dashboard, credential, topic, and piece of telemetry data belongs 
 |-------|-----|
 | Broker gateway | Every PUB/SUB message checked: topic must start with the device's own group_id |
 | Kafka | Messages keyed by `{group_id}:{device_id}` — group embedded in every message |
-| InfluxDB | `group_id` is a tag on every data point; queries always filter by group |
+| MongoDB | `group_id` is a tag on every data point; queries always filter by group |
 | MongoDB | `group_id` is a field on every document; queries always filter |
 | Backend API | Every request validated: user must own the group being accessed |
 | Dashboard | Widget device validated: must belong to same group as the dashboard |
@@ -253,7 +253,7 @@ When an ESP32 connects:
 
 **When a device publishes telemetry**, instead of routing it to other devices (like a traditional MQTT broker), our broker produces the message to Apache Kafka. A separate process called the telemetry worker consumes from Kafka and writes data to databases. This decoupled design means:
 
-- If InfluxDB goes down temporarily, Kafka buffers the messages — no data is lost
+- If MongoDB goes down temporarily, Kafka buffers the messages — no data is lost
 - The telemetry worker can be scaled independently (more workers = more throughput)
 - The broker stays focused on TCP connections and does not slow down doing database writes
 
@@ -284,7 +284,7 @@ All messages are keyed by `{group_id}:{device_id}`. Kafka hashes the key to dete
 
 **The telemetry worker** is a standalone Python process that consumes from `iot.telemetry` and writes to two databases for every message:
 
-1. **InfluxDB** — appends a time-series data point with tags `group_id`, `device_id`, `sensor_type` and field `value`. This powers historical queries like "show me temperature for the last 24 hours."
+1. **MongoDB** — appends a time-series data point with tags `group_id`, `device_id`, `sensor_type` and field `value`. This powers historical queries like "show me temperature for the last 24 hours."
 2. **MongoDB** — upserts the latest device state document. This powers instant lookups like "what is the current temperature?"
 
 The worker scales via Kafka consumer groups: with 6 partitions, you can run up to 6 worker replicas, each handling a subset of partitions.
@@ -352,11 +352,11 @@ A standalone Python script runs as a Kubernetes CronJob every hour. Each run:
    FROM devices d JOIN groups g ON d.group_id = g.id
    ```
 2. For each device, calculates: `cutoff = now - effective_ttl_days`
-3. Deletes all InfluxDB data points older than the cutoff for that device and group
+3. Deletes all MongoDB data points older than the cutoff for that device and group
 4. Deletes stale MongoDB device_state documents older than the cutoff
 5. Logs a summary and exits
 
-**Why not use InfluxDB's built-in retention policies?** Because retention policies apply to an entire bucket, not per-device. Since one device might have a 7-day TTL and another 365 days (both in the same `telemetry` bucket), we need application-level cleanup.
+**Why not use MongoDB's built-in retention policies?** Because retention policies apply to an entire bucket, not per-device. Since one device might have a 7-day TTL and another 365 days (both in the same `telemetry` bucket), we need application-level cleanup.
 
 **The backend API respects TTL too:** When the web app queries historical data, the backend clamps the time range. If a device has a 7-day TTL, requesting `from=30d ago` gets automatically clamped to `from=7d ago`. The dashboard widget time range picker disables options beyond the device's TTL.
 
@@ -476,15 +476,15 @@ Here is every component, what it does, what it connects to, and how it runs:
 |---|-----------|------|--------|---------|-------------|
 | 1 | Broker gateway | TCP server for ESP32 devices | TCP connections from ESP32s | Kafka messages | StatefulSet, 2 replicas |
 | 2 | Apache Kafka | Message queue backbone | Messages from broker + backend | Messages to workers + broker | StatefulSet, 3 replicas (Strimzi) |
-| 3 | Telemetry worker | Writes sensor data to DBs | Kafka `iot.telemetry` | InfluxDB points + MongoDB docs | Deployment, 3 replicas |
-| 4 | TTL cleanup worker | Deletes expired data | PostgreSQL TTL configs | Deletes from InfluxDB + MongoDB | CronJob, hourly |
-| 5 | IoT backend | REST API server | HTTP requests from web app | Reads/writes PostgreSQL, reads InfluxDB + MongoDB, produces to Kafka | Deployment, 2 replicas |
+| 3 | Telemetry worker | Writes sensor data to DBs | Kafka `iot.telemetry` | MongoDB points + MongoDB docs | Deployment, 3 replicas |
+| 4 | TTL cleanup worker | Deletes expired data | PostgreSQL TTL configs | Deletes from MongoDB | CronJob, hourly |
+| 5 | IoT backend | REST API server | HTTP requests from web app | Reads/writes PostgreSQL, reads MongoDB, produces to Kafka | Deployment, 2 replicas |
 | 6 | Web app | Dashboard UI | User interactions | HTTP calls to backend | Deployment, 2 replicas |
 | 7 | PostgreSQL | Relational database | Writes from backend | Reads by backend + TTL worker | StatefulSet, 1 replica, PVC 10Gi |
-| 8 | InfluxDB | Time-series database | Writes from telemetry worker | Reads by backend, deletes by TTL worker | StatefulSet, 1 replica, PVC 20Gi |
+| 8 | MongoDB | Time-series database | Writes from telemetry worker | Reads by backend, deletes by TTL worker | StatefulSet, 1 replica, PVC 20Gi |
 | 9 | MongoDB | Document database | Writes from telemetry worker + backend | Reads by backend, deletes by TTL worker | StatefulSet, 1 replica, PVC 10Gi |
 
-**Data ownership rule:** The telemetry worker writes to InfluxDB and MongoDB. The backend reads from them. This clear ownership means no write conflicts and no coordination required.
+**Data ownership rule:** The telemetry worker writes to MongoDB. The backend reads from them. This clear ownership means no write conflicts and no coordination required.
 
 **The backend's one Kafka interaction:** When a user sends a command via the web app, the backend produces a single message to `iot.commands`. The broker gateway's subscription dispatcher picks this up and pushes it to the connected ESP32 device.
 
@@ -609,12 +609,12 @@ Here is exactly what happens when an ESP32 reads its temperature sensor and the 
 4. **Broker** maps topic to Kafka: topic=`iot.telemetry`, key=`grp_farm_01:ESP32_farm_01`, and produces the message asynchronously.
 5. **Kafka** stores the message in partition 3 (determined by `hash(key) % 6`).
 6. **Telemetry worker** consumes the message from Kafka:
-   - Writes to InfluxDB: `sensor,group_id=grp_farm_01,device_id=ESP32_farm_01,sensor_type=temperature value=28.5`
+   - Writes to MongoDB: `sensor,group_id=grp_farm_01,device_id=ESP32_farm_01,sensor_type=temperature value=28.5`
    - Writes to MongoDB: `{_id:"grp_farm_01:ESP32_farm_01", temperature:28.5, last_updated:now()}`
 7. **User** opens the web dashboard. A chart widget calls: `GET /api/v1/groups/grp_farm_01/devices/ESP32_farm_01/telemetry/history?sensor_type=temperature&from=24h_ago&interval=5m`
-8. **Backend** queries InfluxDB with the time range clamped by the device's TTL setting. Returns an array of `{time, value}` points.
+8. **Backend** queries MongoDB with the time range clamped by the device's TTL setting. Returns an array of `{time, value}` points.
 9. **React chart widget** renders the line graph.
-10. **TTL cleanup worker** (runs hourly): if this device has TTL=7 days, deletes all InfluxDB points and MongoDB docs older than 7 days.
+10. **TTL cleanup worker** (runs hourly): if this device has TTL=7 days, deletes all MongoDB points and MongoDB docs older than 7 days.
 
 ## Trace 2: User command → ESP32
 
@@ -735,7 +735,7 @@ CREATE INDEX idx_credentials_client ON device_credentials(client_id);
 CREATE INDEX idx_user_tokens_user ON user_tokens(user_id);
 ```
 
-## InfluxDB (time-series sensor data)
+## MongoDB (time-series sensor data)
 
 ```
 measurement: sensor
@@ -847,7 +847,7 @@ Cleaned by: TTL cleanup worker
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/v1/groups/{gid}/devices/{did}/telemetry` | Latest readings (from MongoDB) |
-| GET | `/api/v1/groups/{gid}/devices/{did}/telemetry/history?sensor_type=temperature&from=...&to=...&interval=5m` | Historical data (from InfluxDB, range clamped by device TTL) |
+| GET | `/api/v1/groups/{gid}/devices/{did}/telemetry/history?sensor_type=temperature&from=...&to=...&interval=5m` | Historical data (from MongoDB, range clamped by device TTL) |
 
 ## Commands (JWT required)
 
@@ -908,7 +908,7 @@ Cleaned by: TTL cleanup worker
 |-----------|----------|
 | `iot-app` | IoT backend (Deployment 2r), web app (Deployment 2r) |
 | `iot-broker` | Broker gateway (StatefulSet 2r), telemetry worker (Deployment 3r), TTL cleanup worker (CronJob hourly) |
-| `iot-infra` | Kafka (StatefulSet 3r via Strimzi), PostgreSQL (SS 1r), InfluxDB (SS 1r), MongoDB (SS 1r) |
+| `iot-infra` | Kafka (StatefulSet 3r via Strimzi), PostgreSQL (SS 1r), MongoDB (SS 1r), MongoDB (SS 1r) |
 
 ## External access
 
@@ -926,7 +926,7 @@ k8s/
 ├── base/                          # Complete manifests with defaults
 │   ├── kustomization.yaml
 │   ├── namespaces.yaml
-│   ├── configmap.yaml             # DB URLs, Kafka bootstrap, InfluxDB settings
+│   ├── configmap.yaml             # DB URLs, Kafka bootstrap, MongoDB settings
 │   ├── secrets.yaml               # Template (actual values via sealed-secrets)
 │   ├── ingress.yaml               # /api → backend, / → web-app
 │   ├── iot-backend/               # deployment.yaml + service.yaml
@@ -936,7 +936,7 @@ k8s/
 │   ├── ttl-cleanup-worker/        # cronjob.yaml
 │   ├── kafka/                     # Strimzi Kafka resource
 │   ├── postgres/                  # statefulset + service + pvc
-│   ├── influxdb/                  # statefulset + service + pvc
+│   ├── MongoDB/                  # statefulset + service + pvc
 │   └── mongodb/                   # statefulset + service + pvc
 └── overlays/
     ├── staging/                   # 1 replica per service, staging domain
@@ -1001,7 +1001,7 @@ iot-platform/
 │   │   ├── ttl-cleanup-worker/     # CronJob
 │   │   ├── kafka/
 │   │   ├── postgres/
-│   │   ├── influxdb/
+│   │   ├── MongoDB/
 │   │   └── mongodb/
 │   └── overlays/
 │       ├── staging/
@@ -1107,7 +1107,7 @@ iot-platform/
 
 1. Create GitHub repo with the project structure
 2. Set up CI workflow (ruff + pytest on push)
-3. Deploy infrastructure on local K8s (minikube/k3s): Kafka + PostgreSQL + InfluxDB + MongoDB
+3. Deploy infrastructure on local K8s (minikube/k3s): Kafka + PostgreSQL + MongoDB
 4. PostgreSQL: create all tables (users, groups, devices, device_credentials, user_tokens)
 5. Backend: auth endpoints (register, login, refresh, logout)
 6. Backend: group CRUD with free tier enforcement (max 2 groups)
@@ -1135,7 +1135,7 @@ iot-platform/
 
 **Goal:** Data stored in databases, dashboards work, TTL enforced.
 
-1. Telemetry worker: Kafka consumer → InfluxDB (with group_id tag) + MongoDB
+1. Telemetry worker: Kafka consumer → MongoDB (with group_id tag) + MongoDB
 2. Backend: telemetry query endpoints (range clamped by TTL)
 3. Backend: command endpoint (produce to Kafka)
 4. Backend: dashboard CRUD (group-scoped, widget device validation)
