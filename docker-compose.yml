@@ -1,0 +1,107 @@
+# ── IoT Platform Docker Compose ──────────────────────────────────────────────
+# Services: Kafka (KRaft), MongoDB 2.x, PubSub Broker + Query API
+#
+# Usage:
+#   docker compose up -d          # start all services
+#   docker compose logs -f broker # follow broker logs
+#   docker compose down           # stop all
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Apache Kafka (KRaft mode — no Zookeeper) ─────────────────────────────
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: iot-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode (no Zookeeper required)
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      # Topic defaults
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_CFG_NUM_PARTITIONS=3
+    volumes:
+      - kafka_data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── MongoDB (Time Series + TTL) ──────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: iot-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-admin12345}
+    command: ["--setParameter", "ttlMonitorSleepSecs=60"] # Check TTL every 60s
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Mongo Express (Web UI for MongoDB) ───────────────────────────────────
+  mongo-express:
+    image: mongo-express:1.0.2-20
+    container_name: iot-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER:-admin}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASS:-admin12345}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-admin12345}@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: password
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── PubSub Broker + Query API ──────────────────────────────────────────
+  broker:
+    build:
+      context: ./PubSub_Server
+      dockerfile: Dockerfile
+    container_name: iot-broker
+    ports:
+      - "9000:9000"    # TCP broker (devices connect here)
+      - "8080:8080"    # Query API (dashboard/app queries here)
+    environment:
+      - BROKER_HOST=0.0.0.0
+      - BROKER_PORT=1883
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - MONGO_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-admin12345}@mongodb:27017
+      - MONGO_DB=${MONGO_DB:-iot-platform}
+      - API_HOST=0.0.0.0
+      - API_PORT=8080
+      - STUB_AUTH=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+    driver: local
+  mongodb_data:
+    driver: local

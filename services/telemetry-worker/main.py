@@ -1,1 +1,1 @@
-# TODO: Implement Kafka consumer → InfluxDB + MongoDB writer
+# TODO: Implement Kafka consumer → MongoDB writer

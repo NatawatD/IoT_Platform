@@ -233,7 +233,7 @@ db.telemetry.createIndex({ "group_id": 1, "device_id": 1, "sensor_type": 1, "tim
 |----------|--------|
 | Why not all in PostgreSQL? | Telemetry is high-write, schema-flexible, needs TTL. PostgreSQL would need custom cleanup jobs and rigid schemas. |
 | Why not all in MongoDB? | User accounts and credentials need relational integrity (FK constraints, unique email, cascade deletes). |
-| Why not InfluxDB for time-series? | MongoDB with proper indexes handles time-range queries well for a course project. Eliminating InfluxDB means 2 databases instead of 3, and MongoDB's built-in TTL replaces a custom cleanup worker entirely. |
+| Why not MongoDB for time-series? | MongoDB with proper indexes handles time-range queries well for a course project. Eliminating MongoDB means 2 databases instead of 3, and MongoDB's built-in TTL replaces a custom cleanup worker entirely. |
 
 ---
 
@@ -363,7 +363,7 @@ client.loop();                               // Keepalive + incoming messages
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Custom broker + Kafka | Gateway (custom) + Kafka backbone | Satisfies "build your own broker" + durability, replay, consumer groups |
-| 2 databases (not 3) | PostgreSQL + MongoDB | Removed InfluxDB. Simpler deployment, fewer moving parts |
+| 2 databases (not 3) | PostgreSQL + MongoDB | Removed MongoDB. Simpler deployment, fewer moving parts |
 | MongoDB for telemetry | Built-in TTL index | No custom cleanup worker. `expires_at` + TTL index = automatic expiry |
 | PostgreSQL for users | Relational integrity | FK constraints, unique email, cascade deletes |
 | SHA-256 over bcrypt | Device credentials | Sub-ms verification for frequent connects. 256-bit entropy is sufficient |
