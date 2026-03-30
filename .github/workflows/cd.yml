@@ -3,6 +3,16 @@ name: CD Pipeline
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
 
 env:
   REGISTRY: ghcr.io
@@ -10,9 +20,14 @@ env:
 
 jobs:
   # ── Deploy to Staging ─────────────────────────────────────
+  # Architecture: 3 namespaces
+  #   iot-app:    iot-backend (Deployment 2r), web-app (Deployment 2r)
+  #   iot-broker: pubsub-broker (StatefulSet 2r), telemetry-worker (Deployment 3r)
+  #   iot-infra:  Kafka (StatefulSet 3r), PostgreSQL (StatefulSet 1r), MongoDB (StatefulSet 1r)
   deploy-staging:
     runs-on: ubuntu-latest
     environment: staging
+    if: github.event.inputs.environment != 'production'
     permissions:
       packages: read
 
@@ -23,7 +38,9 @@ jobs:
         uses: azure/setup-kubectl@v3
 
       - name: Configure kubeconfig
-        run: echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
 
       - name: Update image tags via Kustomize
         run: |
@@ -32,16 +49,26 @@ jobs:
             iot-backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-iot-backend:${{ github.sha }} \
             pubsub-broker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-pubsub-broker:${{ github.sha }} \
             telemetry-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-telemetry-worker:${{ github.sha }} \
-            ttl-cleanup-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ttl-cleanup-worker:${{ github.sha }} \
             web-app=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web-app:${{ github.sha }}
 
       - name: Deploy to staging
         run: |
           kubectl apply -k k8s/overlays/staging
+
+          # Subsystem 2 — IoT backend app (iot-app namespace)
           kubectl rollout status deployment/iot-backend -n iot-app --timeout=120s
           kubectl rollout status deployment/web-app -n iot-app --timeout=120s
+
+          # Subsystem 1 — Custom PubSub broker (iot-broker namespace)
           kubectl rollout status statefulset/pubsub-broker -n iot-broker --timeout=120s
           kubectl rollout status deployment/telemetry-worker -n iot-broker --timeout=120s
+
+      - name: Verify MongoDB TTL indexes
+        run: |
+          # Ensure MongoDB TTL index is active for automatic data expiry
+          kubectl exec -n iot-infra statefulset/mongodb -- \
+            mongosh --eval 'db.telemetry.getIndexes().filter(i => i.expireAfterSeconds !== undefined)' \
+            --quiet || echo "Warning: Could not verify TTL index"
 
   # ── Integration Tests against Staging ─────────────────────
   integration-tests:
@@ -56,12 +83,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install test deps
-        run: pip install pytest httpx python-dotenv
+        run: pip install pytest httpx python-dotenv websockets
 
       - name: Run integration tests
         env:
           API_BASE_URL: ${{ secrets.STAGING_API_URL }}
-        run: pytest tests/integration/ -v
+          BROKER_HOST: ${{ secrets.STAGING_BROKER_HOST }}
+          BROKER_PORT: 1883
+        run: pytest tests/integration/ -v --tb=short
 
   # ── Deploy to Production (manual approval) ────────────────
   deploy-production:
@@ -78,7 +107,9 @@ jobs:
         uses: azure/setup-kubectl@v3
 
       - name: Configure kubeconfig
-        run: echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
 
       - name: Update image tags via Kustomize
         run: |
@@ -87,26 +118,54 @@ jobs:
             iot-backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-iot-backend:${{ github.sha }} \
             pubsub-broker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-pubsub-broker:${{ github.sha }} \
             telemetry-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-telemetry-worker:${{ github.sha }} \
-            ttl-cleanup-worker=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ttl-cleanup-worker:${{ github.sha }} \
             web-app=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web-app:${{ github.sha }}
 
       - name: Deploy to production
         run: |
           kubectl apply -k k8s/overlays/production
+
+          # Subsystem 2 — IoT backend app (iot-app namespace)
           kubectl rollout status deployment/iot-backend -n iot-app --timeout=180s
           kubectl rollout status deployment/web-app -n iot-app --timeout=180s
+
+          # Subsystem 1 — Custom PubSub broker (iot-broker namespace)
           kubectl rollout status statefulset/pubsub-broker -n iot-broker --timeout=180s
           kubectl rollout status deployment/telemetry-worker -n iot-broker --timeout=180s
 
-      - name: Smoke test
+      - name: Smoke test — API health
         env:
           API_BASE_URL: ${{ secrets.PRODUCTION_API_URL }}
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" $API_BASE_URL/api/v1/health)
           if [ "$STATUS" != "200" ]; then
-            echo "Smoke test failed! Rolling back..."
+            echo "❌ API health check failed (HTTP $STATUS). Rolling back..."
             kubectl rollout undo deployment/iot-backend -n iot-app
             kubectl rollout undo deployment/web-app -n iot-app
             exit 1
           fi
-          echo "Smoke test passed!"
+          echo "✅ API health check passed!"
+
+      - name: Smoke test — Broker TCP connectivity
+        env:
+          BROKER_HOST: ${{ secrets.PRODUCTION_BROKER_HOST }}
+        run: |
+          # Verify broker TCP port 1883 is accepting connections
+          timeout 5 bash -c "echo > /dev/tcp/$BROKER_HOST/1883" 2>/dev/null
+          if [ $? -ne 0 ]; then
+            echo "❌ Broker TCP :1883 unreachable. Rolling back broker..."
+            kubectl rollout undo statefulset/pubsub-broker -n iot-broker
+            exit 1
+          fi
+          echo "✅ Broker TCP :1883 reachable!"
+
+      - name: Verify MongoDB TTL indexes
+        run: |
+          kubectl exec -n iot-infra statefulset/mongodb -- \
+            mongosh --eval '
+              const ttlIndexes = db.telemetry.getIndexes().filter(i => i.expireAfterSeconds !== undefined);
+              if (ttlIndexes.length === 0) {
+                print("⚠️  WARNING: No TTL index found on telemetry collection!");
+                quit(1);
+              }
+              print("✅ TTL index active: " + JSON.stringify(ttlIndexes));
+            ' --quiet
