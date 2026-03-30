@@ -3,6 +3,10 @@ name: CI Pipeline
 on:
   push:
     branches: [main, develop]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "asset/**"
   pull_request:
     branches: [main]
 
@@ -12,15 +16,17 @@ env:
 
 jobs:
   # ── Python Services: Lint + Test ──────────────────────────
+  # Services: iot-backend, PubSub_Server, telemetry-worker
+  # (No ttl-cleanup-worker — MongoDB TTL handles data expiry natively)
   lint-test-python:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         service:
           - iot-backend
-          - pubsub-broker
+          - PubSub_Server
           - telemetry-worker
-          - ttl-cleanup-worker
     defaults:
       run:
         working-directory: services/${{ matrix.service }}
@@ -50,7 +56,15 @@ jobs:
         run: pytest --cov --cov-report=xml -v
         continue-on-error: true
 
-  # ── Frontend: Lint + Test ─────────────────────────────────
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.service }}
+          path: services/${{ matrix.service }}/coverage.xml
+          retention-days: 7
+
+  # ── Frontend: Lint + Build ─────────────────────────────────
   lint-test-frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -77,6 +91,9 @@ jobs:
         run: npm run test -- --run
         continue-on-error: true
 
+      - name: Build check
+        run: npm run build
+
   # ── Firmware: Compile Check ───────────────────────────────
   firmware-compile:
     runs-on: ubuntu-latest
@@ -96,6 +113,9 @@ jobs:
         continue-on-error: true
 
   # ── Build Docker Images + Push to GHCR ────────────────────
+  # Architecture: 2 subsystems
+  #   Subsystem 1 (Broker): PubSub_Server, telemetry-worker
+  #   Subsystem 2 (App):    iot-backend, web-app
   build-push:
     needs: [lint-test-python, lint-test-frontend]
     runs-on: ubuntu-latest
@@ -107,19 +127,22 @@ jobs:
     strategy:
       matrix:
         include:
-          - service: iot-backend
-            context: services/iot-backend
+          # Subsystem 1 — Custom PubSub broker system
           - service: pubsub-broker
-            context: services/pubsub-broker
+            context: services/PubSub_Server
           - service: telemetry-worker
             context: services/telemetry-worker
-          - service: ttl-cleanup-worker
-            context: services/ttl-cleanup-worker
+          # Subsystem 2 — IoT backend application
+          - service: iot-backend
+            context: services/iot-backend
           - service: web-app
             context: apps/web
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -128,14 +151,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # ── Security Scan (Trivy) ─────────────────────────────────
   security-scan:
@@ -144,21 +178,31 @@ jobs:
     if: github.event_name == 'push'
     permissions:
       packages: read
+      security-events: write
 
     strategy:
+      fail-fast: false
       matrix:
         service:
-          - iot-backend
           - pubsub-broker
           - telemetry-worker
-          - ttl-cleanup-worker
+          - iot-backend
           - web-app
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }}
-          format: table
-          exit-code: "1"
+          format: sarif
+          output: trivy-results-${{ matrix.service }}.sarif
           severity: HIGH,CRITICAL
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
