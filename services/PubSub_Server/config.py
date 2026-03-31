@@ -10,7 +10,7 @@ class Config:
 
     # ── Broker ───────────────────────────────────────────────────────────────
     BROKER_HOST: str = os.getenv("BROKER_HOST", "0.0.0.0")
-    BROKER_PORT: int = int(os.getenv("BROKER_PORT", "1883"))  # Changed to MQTT default per Peem's diagram
+    BROKER_PORT: int = int(os.getenv("BROKER_PORT", "9000"))
 
     # ── Kafka ────────────────────────────────────────────────────────────────
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")

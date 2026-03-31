@@ -1,10 +1,18 @@
 # ── IoT Platform Docker Compose ──────────────────────────────────────────────
-# Services: Kafka (KRaft), MongoDB 2.x, PubSub Broker + Query API
+# Architecture: 2 subsystems sharing Kafka + MongoDB
+#
+#   Subsystem 1 — Custom PubSub Broker:
+#     broker      → TCP :1883 (devices) + API :8080 (queries)
+#
+#   Infrastructure:
+#     kafka       → KRaft mode (no Zookeeper), port 9092
+#     mongodb     → Time Series + TTL auto-expiry, port 27017
 #
 # Usage:
-#   docker compose up -d          # start all services
-#   docker compose logs -f broker # follow broker logs
-#   docker compose down           # stop all
+#   docker compose up -d                    # start all
+#   docker compose up -d --build broker     # rebuild broker only
+#   docker compose logs -f broker           # follow broker logs
+#   docker compose down -v                  # stop + clean volumes
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -31,7 +39,7 @@ services:
     volumes:
       - kafka_data:/bitnami/kafka
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      test: [ "CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,7 +55,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-admin12345}
-    command: ["--setParameter", "ttlMonitorSleepSecs=60"] # Check TTL every 60s
+    command: [ "--setParameter", "ttlMonitorSleepSecs=60" ] # Check TTL every 60s
     volumes:
       - mongodb_data:/data/db
     healthcheck:
@@ -75,24 +83,29 @@ services:
     restart: unless-stopped
 
   # ── PubSub Broker + Query API ──────────────────────────────────────────
+  # Architecture: Custom PubSub broker system
+  #   TCP :1883 — devices connect with custom binary protocol (3-part auth)
+  #   HTTP :8080 — telemetry query API (FastAPI)
   broker:
     build:
-      context: ./PubSub_Server
+      context: ./services/PubSub_Server
       dockerfile: Dockerfile
     container_name: iot-broker
     ports:
-      - "9000:9000"    # TCP broker (devices connect here)
-      - "8080:8080"    # Query API (dashboard/app queries here)
+      - "9000:9000" # TCP broker (ESP32 devices connect here)
+      - "8080:8080" # Query API (dashboard/backend queries telemetry)
     environment:
       - BROKER_HOST=0.0.0.0
-      - BROKER_PORT=1883
+      - BROKER_PORT=9000
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - MONGO_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-admin12345}@mongodb:27017
       - MONGO_DB=${MONGO_DB:-iot-platform}
+      - MONGO_TTL_SECONDS=${MONGO_TTL_SECONDS:-2592000}
       - API_HOST=0.0.0.0
       - API_PORT=8080
-      - STUB_AUTH=true
-      - LOG_LEVEL=INFO
+      - STUB_AUTH=${STUB_AUTH:-true}
+      - AUTH_VERIFY_URL=${AUTH_VERIFY_URL:-http://iot-backend:8000/internal/verify-credentials}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     depends_on:
       kafka:
         condition: service_healthy

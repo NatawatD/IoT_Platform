@@ -1,0 +1,36 @@
+# ── PubSub Server .dockerignore ──────────────────────────────────────────────
+# Keep the production image clean — exclude tests, caches, dev files
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/
+*.egg-info/
+
+# Tests (not needed in production)
+tests/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Docs
+*.md
+LICENSE
