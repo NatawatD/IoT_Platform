@@ -28,10 +28,12 @@ resources:
   - kafka/kafka.yaml
   - postgres/statefulset.yaml
   - postgres/service.yaml
-  - MongoDB/statefulset.yaml
-  - MongoDB/service.yaml
   - mongodb/statefulset.yaml
   - mongodb/service.yaml
+
+  # Monitoring
+  - monitoring/namespace.yaml
+  - monitoring/prometheus-grafana.yaml
 
 commonLabels:
   project: iot-platform
