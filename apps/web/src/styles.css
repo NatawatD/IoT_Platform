@@ -1,0 +1,170 @@
+:root {
+  color-scheme: light;
+  font-family: "Inter", system-ui, sans-serif;
+  background: #f5f6fb;
+  color: #1c1c28;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+header {
+  display: grid;
+  gap: 0.5rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2.25rem;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+input {
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  font-size: 1rem;
+}
+
+button {
+  border: none;
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  background: #4f46e5;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.list-item {
+  width: 100%;
+  text-align: left;
+  background: #f8fafc;
+  color: #111827;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid transparent;
+}
+
+button.list-item:hover {
+  border-color: #4f46e5;
+}
+
+.list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+}
+
+.pill {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.hidden {
+  display: none;
+}
+
+.credential-card {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.credential-row {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.credential-row code {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e7ff;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.message-item {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.message-topic {
+  font-weight: 700;
+}
+
+.message-item pre {
+  margin: 0;
+  background: #111827;
+  color: #e5e7eb;
+  padding: 0.8rem;
+  border-radius: 10px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}

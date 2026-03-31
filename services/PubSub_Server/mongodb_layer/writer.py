@@ -72,6 +72,7 @@ class TelemetryWriter:
             document = {
                 FIELD_TIMESTAMP: ts,
                 FIELD_DEVICE_ID: device_id,  # Used as metaField
+                "topic": message.get("topic"),
                 **sensor_data
             }
 

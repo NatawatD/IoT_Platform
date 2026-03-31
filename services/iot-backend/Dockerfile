@@ -17,6 +17,9 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY . .
 
+# Create writable data directory for sqlite
+RUN mkdir -p /app/data && chown -R appuser:appuser /app
+
 # Switch to non-root user
 USER appuser
 

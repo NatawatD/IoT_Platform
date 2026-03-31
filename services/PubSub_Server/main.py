@@ -97,6 +97,9 @@ async def main():
         logger.error(f"Kafka producer initialization failed: {e}")
         logger.warning("Continuing without Kafka (message routing disabled)")
         kafka_producer = None
+    if kafka_producer and not getattr(kafka_producer, "_initialized", False):
+        logger.warning("Kafka producer not initialized — disabling Kafka features")
+        kafka_producer = None
 
     # ── 3. Initialize broker ─────────────────────────────────────────────
     broker = BrokerServer()
@@ -113,8 +116,7 @@ async def main():
         telemetry_consumer = KafkaTopicConsumer(
             topics=[TOPIC_TELEMETRY],
             group_id=f"{config.KAFKA_CONSUMER_GROUP}-telemetry",
-            handler=writer.handle_telemetry_message,
-            name="telemetry-writer",
+            handler_callback=writer.handle_telemetry_message,
         )
         telemetry_consumer.start()
 
@@ -126,8 +128,7 @@ async def main():
         commands_consumer = KafkaTopicConsumer(
             topics=[TOPIC_COMMANDS],
             group_id=f"{config.KAFKA_CONSUMER_GROUP}-commands",
-            handler=command_handler,
-            name="command-router",
+            handler_callback=command_handler,
         )
         commands_consumer.start()
 

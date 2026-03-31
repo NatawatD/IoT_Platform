@@ -26,7 +26,7 @@ class Config:
     # Peem's backend endpoint — stubbed until confirmed
     AUTH_VERIFY_URL: str = os.getenv(
         "AUTH_VERIFY_URL",
-        "http://localhost:8081/api/internal/verify-device"
+        "http://localhost:8000/internal/verify-credentials"
     )
     AUTH_TIMEOUT: int = int(os.getenv("AUTH_TIMEOUT", "5"))
 
