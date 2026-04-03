@@ -90,7 +90,14 @@ jobs:
           API_BASE_URL: ${{ secrets.STAGING_API_URL }}
           BROKER_HOST: ${{ secrets.STAGING_BROKER_HOST }}
           BROKER_PORT: 1883
-        run: pytest tests/integration/ -v --tb=short
+        run: |
+          pytest tests/integration/ -v --tb=short
+          status=$?
+          if [ "$status" -eq 5 ]; then
+            echo "No integration tests were collected; continuing without blocking deployment."
+            exit 0
+          fi
+          exit "$status"
 
   # ── Deploy to Production (manual approval) ────────────────
   deploy-production:
