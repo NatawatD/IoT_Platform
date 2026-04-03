@@ -1,6 +1,6 @@
 # Telemetry Worker - Python Dependencies
 aiokafka==0.10.0
-MongoDB-client[async]==1.43.0
+pymongo==4.7.2
 motor==3.4.0
 structlog==24.2.0
 prometheus-client==0.20.0
