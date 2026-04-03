@@ -419,7 +419,7 @@ const char* CLIENT_ID = "6a4f8e2b-9c1d-4b7a-a3e5-8f2d6c0b4a7e";
 const char* TOKEN     = "d7e3f1a9b5c2084f6e8d0a4b2c9f7e1a...";
 const char* SECRET    = "9f2a4c6e8b0d1a3c5e7f9b2d4a6c8e0f...";
 
-PubSubClient client("iot-broker.example.com", 1883);
+PubSubClient client("203.154.11.226", 10001);
 unsigned long lastReport = 0;
 unsigned long reportInterval = 10000; // 10 seconds
 
@@ -914,8 +914,8 @@ Cleaned by: TTL cleanup worker
 
 | Service | How exposed | External URL |
 |---------|------------|-------------|
-| Web app | Nginx Ingress, path `/` | `https://iot.example.com/` |
-| IoT backend | Nginx Ingress, path `/api` | `https://iot.example.com/api/*` |
+| Web app | Nginx Ingress, path `/` | `http://203.154.11.226.nip.io/` |
+| IoT backend | Nginx Ingress, path `/api` | `http://203.154.11.226.nip.io/api/*` |
 | Broker gateway | LoadBalancer service | `TCP :1883` (ESP32 devices connect here) |
 | Everything else | ClusterIP | Internal only |
 

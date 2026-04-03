@@ -282,7 +282,7 @@ SHA-256 chosen over bcrypt for sub-millisecond verification on frequent device C
 ## 9. PubSubClient ESP32 library
 
 ```cpp
-PubSubClient client("broker.example.com", 1883);
+PubSubClient client("203.154.11.226", 10001);
 client.connect(CLIENT_ID, TOKEN, SECRET);
 client.subscribe("commands/#");              // Auto-prepends {group}/{device}/
 client.publish("telemetry", sensorJson);     // Auto-prepends {group}/{device}/
