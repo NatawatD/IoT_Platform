@@ -80,9 +80,6 @@ images:
   - name: telemetry-worker
     newName: ghcr.io/your-org/iot-telemetry-worker
     newTag: latest
-  - name: ttl-cleanup-worker
-    newName: ghcr.io/your-org/iot-ttl-cleanup-worker
-    newTag: latest
   - name: web-app
     newName: ghcr.io/your-org/iot-web-app
     newTag: latest

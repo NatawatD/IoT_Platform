@@ -24,7 +24,7 @@ spec:
         - name: pubsub-broker
           image: pubsub-broker:latest
           ports:
-            - containerPort: 1883
+            - containerPort: 10001
               name: tcp-broker
             - containerPort: 8080
               name: http-api
@@ -42,12 +42,12 @@ spec:
               memory: 512Mi
           livenessProbe:
             tcpSocket:
-              port: 1883
+              port: 10001
             initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
             tcpSocket:
-              port: 1883
+              port: 10001
             initialDelaySeconds: 5
             periodSeconds: 5
           securityContext:

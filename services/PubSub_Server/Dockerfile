@@ -3,7 +3,7 @@
 # Stage 2: Production image (slim, no build tools)
 #
 # Ports:
-#   1883 — TCP broker (custom binary protocol, devices connect here)
+#   10001 — TCP broker (custom binary protocol, devices connect here)
 #   8080 — Query API (FastAPI, dashboard/backend reads telemetry)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -35,8 +35,8 @@ RUN chown -R iot:iot /app
 
 USER iot
 
-# Expose ports: 9000 (TCP broker), 8080 (Query API)
-EXPOSE 9000 8080
+# Expose ports: 10001 (TCP broker), 8080 (Query API)
+EXPOSE 10001 8080
 
 # Health check — Query API endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

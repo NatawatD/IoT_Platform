@@ -2,7 +2,7 @@
 # Architecture: 2 subsystems sharing Kafka + MongoDB
 #
 #   Subsystem 1 — Custom PubSub Broker:
-#     broker      → TCP :1883 (devices) + API :8080 (queries)
+#     broker      → TCP :10001 (devices) + API :8080 (queries)
 #
 #   Infrastructure:
 #     kafka       → KRaft mode (no Zookeeper), port 9092
@@ -81,9 +81,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── PostgreSQL (User & Device Management) ───────────────────────────────
+  postgres:
+    image: postgres:16
+    container_name: iot-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iot_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password_123}
+      POSTGRES_DB: ${POSTGRES_DB:-iot_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./k8s/base/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot_admin}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ── PubSub Broker + Query API ──────────────────────────────────────────
   # Architecture: Custom PubSub broker system
-  #   TCP :1883 — devices connect with custom binary protocol (3-part auth)
+  #   TCP :10001 — devices connect with custom binary protocol (3-part auth)
   #   HTTP :8080 — telemetry query API (FastAPI)
   broker:
     build:
@@ -91,11 +111,11 @@ services:
       dockerfile: Dockerfile
     container_name: iot-broker
     ports:
-      - "9000:9000" # TCP broker (ESP32 devices connect here)
+      - "10001:10001" # TCP broker (ESP32 devices connect here)
       - "8080:8080" # Query API (dashboard/backend queries telemetry)
     environment:
       - BROKER_HOST=0.0.0.0
-      - BROKER_PORT=9000
+      - BROKER_PORT=10001
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - MONGO_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-admin12345}@mongodb:27017
       - MONGO_DB=${MONGO_DB:-iot-platform}
@@ -110,10 +130,72 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+      iot-backend:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── IoT Backend (FastAPI) ───────────────────────────────────────────────
+  iot-backend:
+    build:
+      context: ./services/iot-backend
+      dockerfile: Dockerfile
+    container_name: iot-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_DSN=postgresql+asyncpg://${POSTGRES_USER:-iot_admin}:${POSTGRES_PASSWORD:-secure_password_123}@postgres:5432/${POSTGRES_DB:-iot_platform}
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-admin12345}@mongodb:27017
+      - MONGODB_DB=${MONGO_DB:-iot-platform}
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - BACKEND_SECRET_KEY=${BACKEND_SECRET_KEY:-change_me}
+      - BACKEND_ALGORITHM=HS256
+      - BACKEND_ACCESS_TOKEN_EXPIRE_MINUTES=15
+      - BACKEND_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Telemetry Worker (Kafka → MongoDB) ──────────────────────────────────
+  telemetry-worker:
+    build:
+      context: ./services/telemetry-worker
+      dockerfile: Dockerfile
+    container_name: iot-telemetry-worker
+    environment:
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASS:-admin12345}@mongodb:27017
+      - TELEMETRY_RETENTION_DAYS=${MONGO_TTL_DAYS:-30}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Web App (React + Nginx) ─────────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: iot-web
+    ports:
+      - "3000:80"
+    depends_on:
+      iot-backend:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
   kafka_data:
     driver: local
   mongodb_data:
+    driver: local
+  postgres_data:
     driver: local

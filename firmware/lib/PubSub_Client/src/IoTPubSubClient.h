@@ -1,23 +1,24 @@
 /*
- * IoTPubSubClient.h — Drop-in replacement for PubSubClient
- * =========================================================
- * ⚠️ LIBRARY DESIGN DELIVERABLE
+ * IoTPubSubClient.h — Custom PubSub Protocol for ESP32
+ * =====================================================
  *
- * This library replaces the standard PubSubClient (MQTT) with a custom
- * binary TCP protocol designed for this IoT platform.
+ * Custom binary TCP protocol for NETPIE-style IoT platform
  *
  * Binary Frame Format:
- *   [type: 1B][flags: 1B][length_hi: 1B][length_lo: 1B][JSON payload: NB]
+ *   [type: 1B][flags: 1B][length: 2B big-endian][JSON payload: NB]
  *
- * Usage (nearly identical to PubSubClient):
+ * 3-Part Authentication:
+ *   - client_id: Device identifier (UUID)
+ *   - token: Authentication token (32-byte hex)
+ *   - secret: Device secret (32-byte hex)
+ *
+ * Usage:
  *   #include <IoTPubSubClient.h>
- *   WiFiClient wifiClient;
- *   IoTPubSubClient client(wifiClient);
- *   client.setServer("broker.local", 9000);
- *   client.setCallback(callback);
- *   client.connect("ESP32_01", "my_token");
- *   client.subscribe("devices/ESP32_01/commands/#");
- *   client.publish("devices/ESP32_01/telemetry", "{\"temperature\":28.5}");
+ *   IoTPubSubClient client("broker.example.com", 1883);
+ *   client.setCallback(onMessage);
+ *   client.connect(CLIENT_ID, TOKEN, SECRET);
+ *   client.subscribe("commands/#");
+ *   client.publish("telemetry", "{\"temperature\":28.5}");
  *   client.loop(); // call in Arduino loop()
  */
 
@@ -25,7 +26,7 @@
 #define IoTPubSubClient_h
 
 #include <Arduino.h>
-#include <Client.h>
+#include <WiFiClient.h>
 #include <ArduinoJson.h>
 
 // ── Message Type Codes ──────────────────────────────────────────────────────

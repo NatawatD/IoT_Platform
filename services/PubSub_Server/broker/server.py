@@ -27,7 +27,7 @@ class BrokerServer:
     - Hold a reference to the Kafka producer (if available)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.subscriptions = SubscriptionManager()
         self._connections: Dict[str, ClientConnection] = {}
         self._server: Optional[asyncio.AbstractServer] = None

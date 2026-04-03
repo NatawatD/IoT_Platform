@@ -19,7 +19,7 @@ data:
 
   # ── Broker ──
   BROKER_HOST: "0.0.0.0"
-  BROKER_PORT: "1883"
+  BROKER_PORT: "10001"
   AUTH_VERIFY_URL: "http://iot-backend.iot-app.svc.cluster.local:8000/internal/verify-credentials"
 
   # ── Application ──
@@ -40,7 +40,7 @@ data:
   MONGO_URI: "mongodb://mongodb.iot-infra.svc.cluster.local:27017"
   MONGO_DB: "iot-platform"
   BROKER_HOST: "0.0.0.0"
-  BROKER_PORT: "1883"
+  BROKER_PORT: "10001"
   AUTH_VERIFY_URL: "http://iot-backend.iot-app.svc.cluster.local:8000/internal/verify-credentials"
   LOG_LEVEL: "INFO"
   LOG_FORMAT: "json"

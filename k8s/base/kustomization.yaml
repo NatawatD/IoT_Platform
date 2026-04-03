@@ -1,7 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: iot-platform
 
 resources:
   # Namespaces
@@ -22,7 +21,6 @@ resources:
   - pubsub-broker/statefulset.yaml
   - pubsub-broker/service.yaml
   - telemetry-worker/deployment.yaml
-  - ttl-cleanup-worker/cronjob.yaml
 
   # Infrastructure (iot-infra namespace)
   - kafka/kafka.yaml
@@ -38,3 +36,9 @@ resources:
 commonLabels:
   project: iot-platform
   managed-by: kustomize
+
+configMapGenerator:
+  - name: postgres-init
+    namespace: iot-infra
+    files:
+      - postgres/init.sql
