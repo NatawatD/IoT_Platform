@@ -156,14 +156,14 @@ jobs:
         env:
           BROKER_HOST: ${{ secrets.PRODUCTION_BROKER_HOST }}
         run: |
-          # Verify broker TCP port 1883 is accepting connections
-          timeout 5 bash -c "echo > /dev/tcp/$BROKER_HOST/1883" 2>/dev/null
+          # Verify broker TCP port 9000 is accepting connections
+          timeout 5 bash -c "echo > /dev/tcp/$BROKER_HOST/9000" 2>/dev/null
           if [ $? -ne 0 ]; then
-            echo "❌ Broker TCP :1883 unreachable. Rolling back broker..."
+            echo "❌ Broker TCP :9000 unreachable. Rolling back broker..."
             kubectl rollout undo statefulset/pubsub-broker -n iot-broker
             exit 1
           fi
-          echo "✅ Broker TCP :1883 reachable!"
+          echo "✅ Broker TCP :9000 reachable!"
 
       - name: Verify MongoDB TTL indexes
         run: |
