@@ -15,6 +15,10 @@ spec:
       targetPort: 1883
       protocol: TCP
       name: tcp-broker
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http-api
 ---
 # Headless service for StatefulSet DNS
 apiVersion: v1
@@ -34,3 +38,7 @@ spec:
       targetPort: 1883
       protocol: TCP
       name: tcp-broker
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http-api

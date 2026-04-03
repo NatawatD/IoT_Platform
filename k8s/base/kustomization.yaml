@@ -9,7 +9,7 @@ resources:
 
   # Shared config
   - configmap.yaml
-  - secrets.yaml
+  # secrets managed manually on server via: kubectl create secret generic iot-secrets --from-env-file=~/IoT_platform/.env
   - ingress.yaml
 
   # Application services (iot-app namespace)
@@ -28,10 +28,12 @@ resources:
   - kafka/kafka.yaml
   - postgres/statefulset.yaml
   - postgres/service.yaml
-  - MongoDB/statefulset.yaml
-  - MongoDB/service.yaml
   - mongodb/statefulset.yaml
   - mongodb/service.yaml
+
+  # Monitoring
+  - monitoring/namespace.yaml
+  - monitoring/prometheus-grafana.yaml
 
 commonLabels:
   project: iot-platform

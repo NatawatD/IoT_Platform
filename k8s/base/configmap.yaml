@@ -5,7 +5,7 @@ metadata:
   namespace: iot-app
 data:
   # ── Kafka ──
-  KAFKA_BOOTSTRAP: "kafka-0.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-1.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-2.kafka-headless.iot-infra.svc.cluster.local:9092"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-0.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-1.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-2.kafka-headless.iot-infra.svc.cluster.local:9092"
 
   # ── PostgreSQL ──
   POSTGRES_HOST: "postgres.iot-infra.svc.cluster.local"
@@ -14,16 +14,13 @@ data:
   POSTGRES_USER: "iot_user"
 
   # ── MongoDB ──
-  MongoDB_URL: "http://MongoDB.iot-infra.svc.cluster.local:8086"
-  MongoDB_ORG: "iot"
-  MongoDB_BUCKET: "telemetry"
-
-  # ── MongoDB ──
-  MONGODB_URI: "mongodb://mongodb.iot-infra.svc.cluster.local:27017/iot_platform"
+  MONGO_URI: "mongodb://mongodb.iot-infra.svc.cluster.local:27017"
+  MONGO_DB: "iot-platform"
 
   # ── Broker ──
+  BROKER_HOST: "0.0.0.0"
   BROKER_PORT: "1883"
-  BROKER_INTERNAL_API: "http://iot-backend.iot-app.svc.cluster.local:8000/internal/verify-credentials"
+  AUTH_VERIFY_URL: "http://iot-backend.iot-app.svc.cluster.local:8000/internal/verify-credentials"
 
   # ── Application ──
   LOG_LEVEL: "INFO"
@@ -35,16 +32,15 @@ metadata:
   name: iot-config
   namespace: iot-broker
 data:
-  KAFKA_BOOTSTRAP: "kafka-0.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-1.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-2.kafka-headless.iot-infra.svc.cluster.local:9092"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-0.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-1.kafka-headless.iot-infra.svc.cluster.local:9092,kafka-2.kafka-headless.iot-infra.svc.cluster.local:9092"
   POSTGRES_HOST: "postgres.iot-infra.svc.cluster.local"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "iot_platform"
   POSTGRES_USER: "iot_user"
-  MongoDB_URL: "http://MongoDB.iot-infra.svc.cluster.local:8086"
-  MongoDB_ORG: "iot"
-  MongoDB_BUCKET: "telemetry"
-  MONGODB_URI: "mongodb://mongodb.iot-infra.svc.cluster.local:27017/iot_platform"
+  MONGO_URI: "mongodb://mongodb.iot-infra.svc.cluster.local:27017"
+  MONGO_DB: "iot-platform"
+  BROKER_HOST: "0.0.0.0"
   BROKER_PORT: "1883"
-  BROKER_INTERNAL_API: "http://iot-backend.iot-app.svc.cluster.local:8000/internal/verify-credentials"
+  AUTH_VERIFY_URL: "http://iot-backend.iot-app.svc.cluster.local:8000/internal/verify-credentials"
   LOG_LEVEL: "INFO"
   LOG_FORMAT: "json"

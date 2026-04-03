@@ -300,7 +300,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: iot.example.com
+    - host: 203.154.11.226.nip.io
       http:
         paths:
           - path: /api

@@ -26,8 +26,8 @@ spec:
           ports:
             - containerPort: 1883
               name: tcp-broker
-            - containerPort: 9090
-              name: metrics
+            - containerPort: 8080
+              name: http-api
           envFrom:
             - configMapRef:
                 name: iot-config

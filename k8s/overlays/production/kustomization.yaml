@@ -40,23 +40,14 @@ patches:
         path: /spec/replicas
         value: 3
 
-  # ── Production Ingress (with TLS) ──
+  # ── Production Ingress host ──
   - target:
       kind: Ingress
       name: iot-ingress
     patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: iot.example.com
-      - op: add
-        path: /spec/tls
-        value:
-          - hosts:
-              - iot.example.com
-            secretName: iot-tls-cert
-      - op: add
-        path: /metadata/annotations/cert-manager.io~1cluster-issuer
-        value: letsencrypt-prod
+        value: 203.154.11.226.nip.io
 
   # ── Higher resource limits for production ──
   - target:
@@ -72,17 +63,17 @@ patches:
 
 images:
   - name: iot-backend
-    newName: ghcr.io/your-org/iot-iot-backend
+    newName: ghcr.io/natawatd/iot-iot-backend
     newTag: latest
   - name: pubsub-broker
-    newName: ghcr.io/your-org/iot-pubsub-broker
+    newName: ghcr.io/natawatd/iot-pubsub-broker
     newTag: latest
   - name: telemetry-worker
-    newName: ghcr.io/your-org/iot-telemetry-worker
+    newName: ghcr.io/natawatd/iot-telemetry-worker
     newTag: latest
   - name: ttl-cleanup-worker
-    newName: ghcr.io/your-org/iot-ttl-cleanup-worker
+    newName: ghcr.io/natawatd/iot-ttl-cleanup-worker
     newTag: latest
   - name: web-app
-    newName: ghcr.io/your-org/iot-web-app
+    newName: ghcr.io/natawatd/iot-web-app
     newTag: latest

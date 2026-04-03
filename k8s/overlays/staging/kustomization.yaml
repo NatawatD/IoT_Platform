@@ -47,21 +47,18 @@ patches:
     patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: staging.iot.example.com
+        value: staging.203.154.11.226.nip.io
 
 images:
   - name: iot-backend
-    newName: ghcr.io/your-org/iot-iot-backend
+    newName: ghcr.io/natawatd/iot-iot-backend
     newTag: latest
   - name: pubsub-broker
-    newName: ghcr.io/your-org/iot-pubsub-broker
+    newName: ghcr.io/natawatd/iot-pubsub-broker
     newTag: latest
   - name: telemetry-worker
-    newName: ghcr.io/your-org/iot-telemetry-worker
-    newTag: latest
-  - name: ttl-cleanup-worker
-    newName: ghcr.io/your-org/iot-ttl-cleanup-worker
+    newName: ghcr.io/natawatd/iot-telemetry-worker
     newTag: latest
   - name: web-app
-    newName: ghcr.io/your-org/iot-web-app
+    newName: ghcr.io/natawatd/iot-web-app
     newTag: latest

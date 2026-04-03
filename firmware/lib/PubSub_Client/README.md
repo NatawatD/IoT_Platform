@@ -18,7 +18,7 @@ Drop-in replacement for the [PubSubClient](https://github.com/knolleary/pubsubcl
 -client.connect("ESP32_01", "user", "pass");
 +#include <IoTPubSubClient.h>
 +IoTPubSubClient client(wifiClient);
-+client.setServer("broker.example.com", 9000);
++client.setServer("203.154.11.226", 10001);
 +client.connect("ESP32_01", "my_auth_token");
 ```
 
