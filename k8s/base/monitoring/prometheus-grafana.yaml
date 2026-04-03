@@ -136,11 +136,13 @@ metadata:
   name: prometheus
   namespace: monitoring
 spec:
+  type: NodePort
   selector:
     app: prometheus
   ports:
     - port: 9090
       targetPort: 9090
+      nodePort: 10003
       name: http
 ---
 apiVersion: v1
@@ -197,9 +199,11 @@ metadata:
   name: grafana
   namespace: monitoring
 spec:
+  type: NodePort
   selector:
     app: grafana
   ports:
     - port: 3000
       targetPort: 3000
+      nodePort: 10004
       name: http

@@ -9,7 +9,7 @@ resources:
 
   # Shared config
   - configmap.yaml
-  - secrets.yaml
+  # secrets managed manually on server via: kubectl create secret generic iot-secrets --from-env-file=~/IoT_platform/.env
   - ingress.yaml
 
   # Application services (iot-app namespace)

@@ -125,6 +125,7 @@ jobs:
       packages: write
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           # Subsystem 1 — Custom PubSub broker system
